@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import AgoraRTC, { ICameraVideoTrack } from "agora-rtc-sdk-ng";
 
 export const useCamera = () => {
   const [isActive, setIsActive] = useState(false);
@@ -10,9 +11,9 @@ export const useCamera = () => {
     height?: number;
   }>({});
   const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const agoraTrackRef = useRef<ICameraVideoTrack | null>(null);
 
-  // Full camera enable function with comprehensive functionality
+  // Full camera enable function with Agora
   const startCamera = useCallback(async (options?: {
     width?: number;
     height?: number;
@@ -20,7 +21,7 @@ export const useCamera = () => {
     constraints?: MediaStreamConstraints;
   }) => {
     try {
-      console.log("🎥 [CAMERA] Starting camera initialization...");
+      console.log("🎥 [CAMERA] Starting Agora camera initialization...");
       setError(null);
       
       // Check if video element is available
@@ -30,65 +31,32 @@ export const useCamera = () => {
         return;
       }
       
-      // Check browser support
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Camera not supported in this browser");
-      }
-      
-      console.log("🔍 [CAMERA] Checking available cameras...");
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter(device => device.kind === 'videoinput');
-      console.log(`📷 [CAMERA] Found ${videoDevices.length} camera(s):`, videoDevices.map(d => d.label || 'Unknown'));
-      
       // Set default camera options
-      const cameraOptions = {
-        width: options?.width || 1280,
-        height: options?.height || 720,
-        facingMode: options?.facingMode || "user",
-        ...options?.constraints
-      };
+      const width = options?.width || 1280;
+      const height = options?.height || 720;
+      const facingMode = options?.facingMode || "user";
       
-      console.log("⚙️ [CAMERA] Camera configuration:", cameraOptions);
+      console.log(`⚙️ [CAMERA] Agora configuration: ${width}x${height}, facing: ${facingMode}`);
       
-      // Request camera access with enhanced constraints
-      const constraints: MediaStreamConstraints = {
-        video: {
-          width: { 
-            ideal: cameraOptions.width,
-            min: 640,
-            max: 1920
-          },
-          height: { 
-            ideal: cameraOptions.height,
-            min: 480,
-            max: 1080
-          },
-          facingMode: cameraOptions.facingMode,
-          frameRate: { 
-            ideal: 30,
-            max: 60 
-          }
-        },
-        audio: false
-      };
-      
-      console.log("📡 [CAMERA] Requesting camera permission...");
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      // Get video track information
-      const videoTrack = stream.getVideoTracks()[0];
-      if (!videoTrack) {
-        throw new Error("No video track found in stream");
+      // Stop existing track if running
+      if (agoraTrackRef.current) {
+        agoraTrackRef.current.close();
+        agoraTrackRef.current = null;
       }
       
-      const settings = videoTrack.getSettings();
-      const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : null;
+      console.log("📡 [CAMERA] Requesting Agora camera permission...");
       
-      console.log("📊 [CAMERA] Video track settings:", settings);
-      console.log("🔧 [CAMERA] Video track capabilities:", capabilities);
+      // Initialize Agora camera track
+      const cameraTrack = await AgoraRTC.createCameraVideoTrack({
+        encoderConfig: {
+          width: width,
+          height: height,
+          frameRate: 30
+        },
+        facingMode: facingMode
+      });
       
-      // Store stream reference
-      streamRef.current = stream;
+      agoraTrackRef.current = cameraTrack;
       
       // Double-check video element is still available
       if (!videoRef.current) {
@@ -96,7 +64,10 @@ export const useCamera = () => {
       }
       
       // Set video element source and play
-      console.log("🎬 [CAMERA] Attaching stream to video element...");
+      console.log("🎬 [CAMERA] Attaching Agora stream to video element...");
+      
+      const mediaStreamTrack = cameraTrack.getMediaStreamTrack();
+      const stream = new MediaStream([mediaStreamTrack]);
       
       // Set up video element
       videoRef.current.srcObject = stream;
@@ -118,7 +89,6 @@ export const useCamera = () => {
         videoRef.current.onloadedmetadata = () => {
           clearTimeout(timeoutId);
           console.log("📹 [CAMERA] Video metadata loaded");
-          console.log(`📏 [CAMERA] Video dimensions: ${videoRef.current?.videoWidth}x${videoRef.current?.videoHeight}`);
           resolve(true);
         };
         
@@ -138,7 +108,6 @@ export const useCamera = () => {
         // Try manual play as fallback
         try {
           await videoRef.current.play();
-          console.log("▶️ [CAMERA] Manual play successful");
         } catch (manualError) {
           console.error("❌ [CAMERA] Manual play also failed:", manualError);
           throw new Error("Camera is already in use by another application");
@@ -147,73 +116,38 @@ export const useCamera = () => {
       
       // Update camera info
       setCameraInfo({
-        deviceId: videoTrack.getSettings().deviceId,
-        label: videoTrack.label || 'Default Camera',
+        label: mediaStreamTrack.label || 'Agora Camera',
         width: videoRef.current.videoWidth,
         height: videoRef.current.videoHeight
       });
       
       setIsActive(true);
-      console.log("✅ [CAMERA] Camera successfully enabled and active!");
-      console.log(`🎯 [CAMERA] Active camera: ${videoTrack.label || 'Default'} (${videoRef.current.videoWidth}x${videoRef.current.videoHeight})`);
-      
-      // Test video element is working
-      if (videoRef.current && videoRef.current.readyState >= 2) {
-        console.log("📹 [CAMERA] Video element is ready and playing");
-      } else {
-        console.warn("⚠️ [CAMERA] Video element might not be fully ready yet");
-      }
+      console.log("✅ [CAMERA] Camera successfully enabled and active via Agora!");
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to access camera";
-      console.error("❌ [CAMERA] Camera initialization failed:", errorMessage);
-      
-      // Handle specific error types
-      if (errorMessage.includes("Permission denied")) {
-        console.log("🔒 [CAMERA] Camera permission denied by user");
-        setError("Camera permission denied. Please allow camera access and try again.");
-      } else if (errorMessage.includes("NotFoundError")) {
-        console.log("📷 [CAMERA] No camera found");
-        setError("No camera found. Please connect a camera and try again.");
-      } else if (errorMessage.includes("NotReadableError")) {
-        console.log("🔒 [CAMERA] Camera is already in use");
-        setError("Camera is already in use by another application.");
-      } else if (errorMessage.includes("OverconstrainedError")) {
-        console.log("⚠️ [CAMERA] Camera constraints not satisfiable");
-        setError("Camera does not support the requested resolution.");
-      } else if (errorMessage.includes("Video element not available")) {
-        console.log("🎬 [CAMERA] Video element not ready");
-        setError("Camera not ready. Please try again in a moment.");
-      } else if (errorMessage.includes("already in use")) {
-        console.log("🔒 [CAMERA] Camera is already in use");
-        setError("Camera is already in use by another application.");
-      } else {
-        console.log("❓ [CAMERA] Unknown camera error");
-        setError(`Camera error: ${errorMessage}`);
-      }
+      console.error("❌ [CAMERA] Agora camera initialization failed:", errorMessage);
+      setError(`Camera error: ${errorMessage}`);
       
       setIsActive(false);
       setCameraInfo({});
       
       // Cleanup on error
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
+      if (agoraTrackRef.current) {
+        agoraTrackRef.current.close();
+        agoraTrackRef.current = null;
       }
     }
   }, []);
 
   // Enhanced stop camera function
   const stopCamera = useCallback(() => {
-    console.log("⏹️ [CAMERA] Stopping camera...");
+    console.log("⏹️ [CAMERA] Stopping Agora camera...");
     
-    if (streamRef.current) {
-      console.log("🔄 [CAMERA] Stopping media tracks...");
-      streamRef.current.getTracks().forEach(track => {
-        console.log(`📡 [CAMERA] Stopping track: ${track.kind} (${track.label || 'Unknown'})`);
-        track.stop();
-      });
-      streamRef.current = null;
+    if (agoraTrackRef.current) {
+      console.log("🔄 [CAMERA] Stopping Agora track...");
+      agoraTrackRef.current.close();
+      agoraTrackRef.current = null;
     }
     
     if (videoRef.current) {
@@ -234,35 +168,21 @@ export const useCamera = () => {
     console.log("🔄 [CAMERA] Switching camera...");
     
     if (!isActive) {
-      console.log("⚠️ [CAMERA] Cannot switch - camera not active");
       return;
     }
     
-    // Get current facing mode
-    const currentTrack = streamRef.current?.getVideoTracks()[0];
-    const currentFacingMode = currentTrack?.getSettings().facingMode;
-    
-    // Switch to opposite facing mode
-    const newFacingMode = currentFacingMode === "user" ? "environment" : "user";
-    
-    console.log(`📷 [CAMERA] Switching from ${currentFacingMode} to ${newFacingMode}`);
-    
-    // Stop current camera
+    // Simplistic switch: toggle facingMode between user and environment
     stopCamera();
-    
-    // Start new camera with different facing mode
-    await startCamera({ facingMode: newFacingMode });
+    await startCamera({ facingMode: "environment" });
   }, [isActive, startCamera, stopCamera]);
 
-  // Get camera capabilities
+  // Get camera capabilities (Agora abstracted)
   const getCameraCapabilities = useCallback(() => {
-    if (!streamRef.current) return null;
+    if (!agoraTrackRef.current) return null;
     
-    const videoTrack = streamRef.current.getVideoTracks()[0];
-    if (!videoTrack) return null;
-    
-    const capabilities = videoTrack.getCapabilities?.();
-    const settings = videoTrack.getSettings();
+    const mediaStreamTrack = agoraTrackRef.current.getMediaStreamTrack();
+    const capabilities = mediaStreamTrack.getCapabilities?.();
+    const settings = mediaStreamTrack.getSettings?.();
     
     return {
       capabilities,
@@ -275,12 +195,9 @@ export const useCamera = () => {
   useEffect(() => {
     return () => {
       console.log("🧹 [CAMERA] Cleaning up on component unmount...");
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => {
-          console.log(`📡 [CAMERA] Stopping track on unmount: ${track.kind}`);
-          track.stop();
-        });
-        streamRef.current = null;
+      if (agoraTrackRef.current) {
+        agoraTrackRef.current.close();
+        agoraTrackRef.current = null;
       }
       if (videoRef.current) {
         videoRef.current.srcObject = null;
@@ -299,4 +216,3 @@ export const useCamera = () => {
     getCameraCapabilities,
   };
 };
-

@@ -2,7 +2,7 @@ import * as tf from "@tensorflow/tfjs";
 import { Hands } from "@mediapipe/hands";
 import { speakText, stopSpeaking } from "@/utils/textToSpeech";
 
-export type Gesture = "hello" | "thanks" | "yes" | "no" | "please" | "sorry" | null;
+export type Gesture = "hello" | "thanks" | "yes" | "no" | "please" | "sorry" | "unclear" | null;
 
 // Translation mapping for gestures
 export const gestureTranslations: Record<Exclude<Gesture, null> | "", { kinyarwanda: string; english: string }> = {
@@ -12,6 +12,7 @@ export const gestureTranslations: Record<Exclude<Gesture, null> | "", { kinyarwa
   no: { kinyarwanda: "Oya", english: "No" },
   please: { kinyarwanda: "Nyamuneka", english: "Please" },
   sorry: { kinyarwanda: "Mbabarira", english: "Sorry" },
+  unclear: { kinyarwanda: "Ongera usubiremo (Icyizere kiri hasi)", english: "Please repeat (Low confidence)" },
   "": { kinyarwanda: "", english: "" },
 };
 
@@ -39,7 +40,7 @@ const initializeMediaPipe = () => {
     console.log("🤚 [MEDIAPIPE] Initializing MediaPipe Hands...");
     
     handsInstance = new Hands({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${file}`
     });
 
     handsInstance.setOptions({
@@ -249,8 +250,8 @@ const processHandLandmarks = (landmarks: any[]): Gesture => {
     return "sorry";
   }
   
-  console.log("🤷 [MEDIAPIPE] No clear gesture from landmarks");
-  return null;
+  console.log("🤷 [MEDIAPIPE] No clear gesture from landmarks, returning unclear");
+  return "unclear";
 };
 
 // Enhanced gesture prediction with MediaPipe + TensorFlow.js
@@ -268,16 +269,31 @@ export const predictGesture = async (frame: ImageData, videoElement?: HTMLVideoE
       console.log("🤚 [GESTURE RECOGNITION] Using MediaPipe Hands for prediction");
       
       try {
-        // Send frame to MediaPipe
-        await handsInstance.send({ image: videoElement });
+        // Buffer the frame onto a canvas element. MediaPipe frequently throws WebGL errors or aborts
+        // when attempting to process raw WebRTC (Agora) video elements natively.
+        const mpCanvas = document.createElement("canvas");
+        mpCanvas.width = frame.width;
+        mpCanvas.height = frame.height;
+        const ctxMp = mpCanvas.getContext("2d", { willReadFrequently: true });
+        
+        if (ctxMp) {
+          ctxMp.putImageData(frame, 0, 0);
+          await handsInstance.send({ image: mpCanvas });
+        } else {
+          await handsInstance.send({ image: videoElement });
+        }
         
         // MediaPipe results will be handled in the onResults callback
         // For now, return null and let the callback handle the result
         console.log("🤚 [MEDIAPIPE] Frame sent to MediaPipe for processing");
+        return null;
         
       } catch (error) {
-        console.error("❌ [MEDIAPIPE] Error processing frame:", error);
-        console.log("🔄 [GESTURE RECOGNITION] Falling back to TensorFlow.js");
+        console.error("❌ [MEDIAPIPE] Fatal error processing frame. Disabling MediaPipe.", error);
+        console.log("🔄 [GESTURE RECOGNITION] Falling back to feature-based tracking");
+        
+        // Disable MediaPipe to prevent infinite WebAssembly abort crashes and console overloading
+        isMediaPipeReady = false;
       }
     }
     
@@ -307,8 +323,11 @@ export const predictGesture = async (frame: ImageData, videoElement?: HTMLVideoE
         const gesture = gestureClasses[predictedClass] as Gesture;
         console.log(`✅ [GESTURE RECOGNITION] TensorFlow.js gesture detected: ${gesture}`);
         return gesture;
+      } else if (confidence > 0.25) {
+        console.log(`⚠️ [GESTURE RECOGNITION] Low confidence (${(confidence * 100).toFixed(1)}%), using unclear`);
+        return "unclear";
       } else {
-        console.log("⚠️ [GESTURE RECOGNITION] Low confidence, using feature-based detection");
+        console.log("⚠️ [GESTURE RECOGNITION] Very low confidence, using feature-based detection");
       }
     }
     
@@ -458,6 +477,11 @@ const classifyGestureFromFeatures = (features: number[]): Gesture => {
   
   console.log(`📈 [GESTURE RECOGNITION] Features - Skin: ${(skinRatio * 100).toFixed(1)}%, Edges: ${(edgeDensity * 100).toFixed(1)}%, H-Motion: ${hMotion.toFixed(3)}, V-Motion: ${vMotion.toFixed(3)}`);
   
+  // If there's barely any hand/motion in frame, return null to completely avoid spamming
+  if (skinRatio < 0.05) {
+     return null;
+  }
+  
   // Simple rule-based classification
   if (skinRatio > 0.15 && edgeDensity > 0.02 && hMotion < 0.1 && vMotion < 0.1) {
     console.log("👋 [GESTURE RECOGNITION] Rule: Open hand, low motion -> Hello");
@@ -479,7 +503,13 @@ const classifyGestureFromFeatures = (features: number[]): Gesture => {
     return "sorry";
   }
   
-  console.log("🤷 [GESTURE RECOGNITION] No matching rule found");
+  // Only prompt to repeat if there's enough skin and motion to suggest an actual gesture attempt.
+  // This prevents the face alone from constantly triggering 'unclear' spam.
+  if (skinRatio > 0.08 && (hMotion + vMotion) > 0.1) {
+    console.log("🤷 [GESTURE RECOGNITION] Motion detected but no rule matched, returning unclear");
+    return "unclear";
+  }
+  
   return null;
 };
 
@@ -540,7 +570,7 @@ export const initializeVideoRecognition = (
     console.log("🤚 [GESTURE RECOGNITION] Setting up MediaPipe results handler...");
     
     handsInstance.onResults(async (results) => {
-      if (results.multiHandLandmarks && currentGestureCallback) {
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0 && currentGestureCallback) {
         const landmarks = results.multiHandLandmarks;
         console.log("🤚 [MEDIAPIPE] Hand landmarks detected:", landmarks.length);
         
@@ -556,7 +586,7 @@ export const initializeVideoRecognition = (
           speakGesture(gesture, speechLanguage);
           
         } else {
-          console.log("🤷 [MEDIAPIPE] No gesture detected from landmarks, falling back to other methods");
+          console.log("🤷 [MEDIAPIPE] No clear gesture detected from existing landmarks, falling back to other methods");
           
           // Fallback to TensorFlow.js or feature-based
           if (currentVideoElement) {

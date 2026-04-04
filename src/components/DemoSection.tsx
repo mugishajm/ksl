@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
-import { Camera, Type, ArrowLeftRight, Mic, Volume2, X, Loader2, Trash2 } from "lucide-react";
+import { Camera, Type, ArrowLeftRight, Mic, Volume2, VolumeX, X, Loader2, Trash2, RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/context/LanguageContext";
 import { useCamera } from "@/hooks/useCamera";
@@ -13,7 +13,8 @@ import {
   gestureTranslations,
   predictGesture,
   captureFrame,
-  checkSystemHealth
+  checkSystemHealth,
+  configureSpeech
 } from "@/utils/gestureRecognition";
 import { speakText, stopSpeaking, detectLanguage } from "@/utils/textToSpeech";
 import { translateTextToSign, type SignAnimation } from "@/utils/textToSign";
@@ -30,8 +31,17 @@ const DemoSection = () => {
   const [voiceInputLang, setVoiceInputLang] = useState<"en-US" | "rw-RW">("en-US");
   const [isModelLoading, setIsModelLoading] = useState(true);
   const [recognitionAccuracy, setRecognitionAccuracy] = useState(96);
+  const [isAutoSpeak, setIsAutoSpeak] = useState(true);
 
-  const { videoRef, isActive, error, startCamera, stopCamera } = useCamera();
+  // Sync auto-speak setting with gesture recognition
+  useEffect(() => {
+    configureSpeech({ enabled: isAutoSpeak });
+    if (!isAutoSpeak) {
+      stopSpeaking();
+    }
+  }, [isAutoSpeak]);
+  
+  const { videoRef, isActive, error, startCamera, stopCamera, switchCamera } = useCamera();
   const {
     isListening,
     transcript,
@@ -65,13 +75,14 @@ const DemoSection = () => {
       const translation = gestureTranslations[gesture];
       
       // French translations for gestures
-      const frenchTranslations = {
+      const frenchTranslations: Record<string, string> = {
         hello: "Bonjour",
         thanks: "Merci", 
         yes: "Oui",
         no: "Non",
         please: "S'il vous plaît",
-        sorry: "Désolé"
+        sorry: "Désolé",
+        unclear: "Veuillez répéter (faible confiance)"
       };
       
       const text = outputLanguage === "kinyarwanda" 
@@ -81,9 +92,14 @@ const DemoSection = () => {
         : translation.english;
       setTranslatedText(text);
       
-      // Update recognition accuracy (simulated)
-      const accuracy = Math.floor(Math.random() * 15) + 85; // 85-99%
-      setRecognitionAccuracy(accuracy);
+      // Update recognition accuracy (simulated or based on clarity)
+      if (gesture === "unclear") {
+        const accuracy = Math.floor(Math.random() * 20) + 30; // 30-50%
+        setRecognitionAccuracy(accuracy);
+      } else {
+        const accuracy = Math.floor(Math.random() * 15) + 85; // 85-99%
+        setRecognitionAccuracy(accuracy);
+      }
     }
   };
 
@@ -321,14 +337,14 @@ const DemoSection = () => {
                     {isActive ? (
                       <>
                         {isRecognizing && (
-                          <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-accent/20 backdrop-blur-sm rounded-lg border border-accent/30">
-                            <Loader2 size={16} className="animate-spin text-accent" />
-                            <span className="text-white text-sm">
+                          <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-green-500/20 backdrop-blur-sm rounded-lg border border-green-500/40">
+                            <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
+                            <span className="text-green-50 text-sm font-medium">
                               {language === "kinyarwanda"
-                                ? "Gukusanya..."
+                                ? "Yihujwe (Yiteguye)"
                                 : language === "french"
-                                ? "Reconnaissance..."
-                                : "Recognizing..."}
+                                ? "Connectée (Prêt)"
+                                : "Connected (Ready)"}
                             </span>
                           </div>
                         )}
@@ -344,6 +360,13 @@ const DemoSection = () => {
                             </span>
                           </div>
                         )}
+                        <button
+                          onClick={switchCamera}
+                          className="absolute top-4 right-4 p-2.5 bg-accent/20 hover:bg-accent/40 backdrop-blur-sm rounded-full transition-colors border border-accent/30 text-white z-10"
+                          title={language === "kinyarwanda" ? "Hindura Kamera" : language === "french" ? "Changer de caméra" : "Switch Camera"}
+                        >
+                          <RefreshCcw size={20} />
+                        </button>
                       </>
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center">
@@ -539,13 +562,16 @@ const DemoSection = () => {
                         : "Sign Animation"}
                   </h3>
                   {activeTab === "gesture" && translatedText && (
-                    <Button variant="ghost" size="sm" onClick={handleSpeak}>
-                      <Volume2 size={18} className="mr-2" />
-                      {language === "kinyarwanda"
-                        ? "Vuga"
-                        : language === "french"
-                        ? "Parler"
-                        : "Speak"}
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setIsAutoSpeak(!isAutoSpeak)}
+                      title={isAutoSpeak ? "Mute Auto-speak" : "Enable Auto-speak"}
+                    >
+                      {isAutoSpeak ? <Volume2 size={18} className="mr-2 text-primary" /> : <VolumeX size={18} className="mr-2 text-muted-foreground" />}
+                      {isAutoSpeak 
+                        ? (language === "kinyarwanda" ? "Cyesha" : language === "french" ? "Silencieux" : "Mute") 
+                        : (language === "kinyarwanda" ? "Vuga" : language === "french" ? "Parler" : "Speak")}
                     </Button>
                   )}
                   {activeTab === "text" && signAnimations.length > 0 && (
