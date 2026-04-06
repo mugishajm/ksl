@@ -28,6 +28,7 @@ import {
   HandHeart,
   Monitor,
   BarChart3,
+  Home,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -69,7 +70,7 @@ const menuItems = [
   {
     title: "Settings",
     icon: Settings,
-    url: "/settings",
+    url: "/admin/settings",
     submenu: null,
   },
   {
@@ -234,6 +235,15 @@ const AdminHeader = () => {
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
+            className="flex items-center gap-2 text-white hover:bg-white/10 border border-white/20 hover:border-white/40 transition-all px-3"
+            onClick={() => navigate("/")}
+            aria-label="Back to Home"
+          >
+            <Home className="h-4 w-4" />
+            <span className="hidden sm:inline text-sm font-medium">Back to Home</span>
+          </Button>
+          <Button
+            variant="ghost"
             size="icon"
             className="text-white hover:bg-white/10"
             onClick={toggleTheme}
@@ -263,7 +273,7 @@ const AdminHeader = () => {
                 <Link to="/profile">Profile</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to="/settings">Settings</Link>
+                <Link to="/admin/settings">Settings</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">

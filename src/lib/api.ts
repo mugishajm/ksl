@@ -1,5 +1,5 @@
 // Base URL for the backend API
-const API_URL = "http://localhost:5000/api";
+const API_URL = "http://localhost:9000/api";
 
 export async function getGestures() {
   const res = await fetch(`${API_URL}/gestures`);
@@ -33,6 +33,24 @@ export async function inviteUser(data: { name: string; email: string; role: stri
   return res.json();
 }
 
+export async function updateUser(id: string, data: { role?: string; status?: string }) {
+  const res = await fetch(`${API_URL}/users/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to update user");
+  return res.json();
+}
+
+export async function deleteUser(id: string) {
+  const res = await fetch(`${API_URL}/users/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to delete user");
+  return res.json();
+}
+
 export async function getLogs() {
   const res = await fetch(`${API_URL}/logs`);
   if (!res.ok) throw new Error("Failed to fetch logs");
@@ -42,5 +60,11 @@ export async function getLogs() {
 export async function getReportStats(range: "7d" | "30d" | "90d" = "30d") {
   const res = await fetch(`${API_URL}/reports/stats?range=${range}`);
   if (!res.ok) throw new Error("Failed to fetch report stats");
+  return res.json();
+}
+
+export async function getRecentUsers() {
+  const res = await fetch(`${API_URL}/reports/recent-users`);
+  if (!res.ok) throw new Error("Failed to fetch recent users");
   return res.json();
 }

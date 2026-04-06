@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Menu, X, User, Settings, LogOut, ChevronDown } from "lucide-react";
+import { Menu, X, User, Settings, LogOut, ChevronDown, LayoutDashboard } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -182,6 +182,17 @@ const Header = () => {
                       {authLabels.settings[language]}
                     </Link>
                   </DropdownMenuItem>
+                  {user?.role === "admin" && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link to="/admin" className="flex items-center gap-2 cursor-pointer text-primary">
+                          <LayoutDashboard className="h-4 w-4" />
+                          Back to Admin Dashboard
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-red-500 focus:bg-red-500/20 focus:text-red-400 font-medium cursor-pointer">
                     <LogOut className="h-4 w-4 mr-2" />
@@ -246,6 +257,14 @@ const Header = () => {
                         {authLabels.settings[language]}
                       </Link>
                     </Button>
+                    {user?.role === "admin" && (
+                      <Button asChild variant="ghost" className="justify-start text-primary">
+                        <Link to="/admin" onClick={() => setIsMenuOpen(false)}>
+                          <LayoutDashboard className="h-4 w-4 mr-2" />
+                          Back to Admin Dashboard
+                        </Link>
+                      </Button>
+                    )}
                     <Button variant="ghost" className="justify-start text-red-500 hover:text-red-400 hover:bg-red-500/20" onClick={() => { handleLogout(); setIsMenuOpen(false); }}>
                       {authLabels.logout[language]}
                     </Button>

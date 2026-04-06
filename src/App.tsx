@@ -28,6 +28,7 @@ import ManageGestures from "./pages/admin/ManageGestures";
 import UserManagement from "./pages/admin/UserManagement";
 import InterpretationLogs from "./pages/admin/InterpretationLogs";
 import Reports from "./pages/admin/Reports";
+import AdminSettings from "./pages/admin/AdminSettings";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +70,7 @@ const App = () => (
                 <Route path="users" element={<UserManagement />} />
                 <Route path="logs" element={<InterpretationLogs />} />
                 <Route path="reports" element={<Reports />} />
+                <Route path="settings" element={<AdminSettings />} />
               </Route>
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
