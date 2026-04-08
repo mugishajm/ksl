@@ -21,8 +21,10 @@ import Settings from "./pages/Settings";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import NotFound from "./pages/NotFound";
+import CompleteProfile from "./pages/CompleteProfile";
 import { AdminGuard } from "./components/admin/AdminGuard";
 import { AdminLayout } from "./components/admin/AdminLayout";
+import { ProfileGuard } from "./components/auth/ProfileGuard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ManageGestures from "./pages/admin/ManageGestures";
 import UserManagement from "./pages/admin/UserManagement";
@@ -42,18 +44,22 @@ const App = () => (
           <BrowserRouter>
             <ScrollToTop />
             <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/translate" element={<Translation />} />
-              <Route path="/features" element={<Features />} />
-              <Route path="/about" element={<About />} />
-              <Route path="/how-it-works" element={<HowItWorks />} />
+              {/* Profile completion – accessible only when logged in, profile incomplete */}
+              <Route path="/complete-profile" element={<CompleteProfile />} />
+              {/* Auth page – always accessible */}
               <Route path="/auth" element={<Auth />} />
-              <Route path="/user-guide" element={<UserGuide />} />
-              <Route path="/gesture-library" element={<GestureLibrary />} />
-              <Route path="/api-docs" element={<ApiDocumentation />} />
-              <Route path="/community-forum" element={<CommunityForum />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/settings" element={<Settings />} />
+              {/* Public pages – no login needed, but profile guard applies for logged-in users */}
+              <Route path="/" element={<ProfileGuard><Index /></ProfileGuard>} />
+              <Route path="/translate" element={<ProfileGuard><Translation /></ProfileGuard>} />
+              <Route path="/features" element={<ProfileGuard><Features /></ProfileGuard>} />
+              <Route path="/about" element={<ProfileGuard><About /></ProfileGuard>} />
+              <Route path="/how-it-works" element={<ProfileGuard><HowItWorks /></ProfileGuard>} />
+              <Route path="/user-guide" element={<ProfileGuard><UserGuide /></ProfileGuard>} />
+              <Route path="/gesture-library" element={<ProfileGuard><GestureLibrary /></ProfileGuard>} />
+              <Route path="/api-docs" element={<ProfileGuard><ApiDocumentation /></ProfileGuard>} />
+              <Route path="/community-forum" element={<ProfileGuard><CommunityForum /></ProfileGuard>} />
+              <Route path="/profile" element={<ProfileGuard><Profile /></ProfileGuard>} />
+              <Route path="/settings" element={<ProfileGuard><Settings /></ProfileGuard>} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/terms-of-service" element={<TermsOfService />} />
               {/* Admin Routes – only users with role "admin" can access */}

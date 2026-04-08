@@ -79,8 +79,17 @@ const LoginForm = () => {
         window.dispatchEvent(new Event("ksl-user-update"));
       }
 
-      const role = (data?.user && typeof data.user === "object" && (data.user as { role?: string }).role) ?? "user";
-      navigate(role === "admin" ? "/admin" : "/", { replace: true });
+      const userData = data?.user as { role?: string; profileCompleted?: boolean } | undefined;
+      const role = userData?.role ?? "user";
+      const profileCompleted = userData?.profileCompleted ?? false;
+
+      if (role === "admin") {
+        navigate("/admin", { replace: true });
+      } else if (!profileCompleted) {
+        navigate("/complete-profile", { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
       return;
     } catch (err) {
       console.error(err);
@@ -142,8 +151,17 @@ const LoginForm = () => {
         window.dispatchEvent(new Event("ksl-user-update"));
       }
 
-      const role = (data?.user && typeof data.user === "object" && (data.user as { role?: string }).role) ?? "user";
-      navigate(role === "admin" ? "/admin" : "/", { replace: true });
+      const userData = data?.user as { role?: string; profileCompleted?: boolean } | undefined;
+      const role = userData?.role ?? "user";
+      const profileCompleted = userData?.profileCompleted ?? false;
+
+      if (role === "admin") {
+        navigate("/admin", { replace: true });
+      } else if (!profileCompleted) {
+        navigate("/complete-profile", { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
       return;
     } catch (err) {
       console.error(err);
